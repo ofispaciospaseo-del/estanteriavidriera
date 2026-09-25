@@ -56,7 +56,7 @@
     }
 
     .search-bar {
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       width: 100%;
     }
 
@@ -79,7 +79,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
       gap: 10px;
-      max-height: 420px;
+      max-height: 500px;
       overflow-y: auto;
       padding-right: 5px;
       width: 100%;
@@ -170,9 +170,9 @@
     }
 
     .status-msg {
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: #00f3ff;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     .toast {
@@ -201,14 +201,8 @@
   <div class="main-layout">
     <div class="gallery-section">
       <h3>🏛️ Catálogo de Estampillas</h3>
-      <div id="statusMsg" class="status-msg">Catálogo sincronizado.</div>
+      <div id="statusMsg" class="status-msg">Cargando vidriera pública...</div>
       
-      <!-- Botón extra por si querés agregar imágenes al instante desde cualquier celu -->
-      <div class="form-group" style="background:#0f1322; padding:8px; border-radius:6px; border:1px dashed var(--neon-cyan);">
-        <label for="addImagesInput" style="color:var(--neon-cyan); cursor:pointer; margin:0;">➕ Agregar fotos extra al catálogo:</label>
-        <input type="file" id="addImagesInput" accept="image/*" multiple style="margin-top:5px;">
-      </div>
-
       <div class="search-bar">
         <input type="text" id="searchInput" placeholder="🔍 Buscar por nombre...">
       </div>
@@ -246,9 +240,12 @@
     </div>
   </div>
 
-  <div class="toast" id="toastMsg">✅ ¡AVISO Y DATOS FIJADOS!<br><span style="font-size:0.8rem; font-family:'Roboto',sans-serif;">Ya se ve perfecto en cualquier dispositivo.</span></div>
+  <div class="toast" id="toastMsg">✅ ¡AVISO Y LOGO FIJADOS!<br><span style="font-size:0.8rem; font-family:'Roboto',sans-serif;">Ya podés apretar F5 tranquilo, no se borra nada.</span></div>
 
   <script>
+    const GITHUB_USER = 'ofispaciospaseo-del';
+    const GITHUB_REPO = 'estanteriavidriera';
+
     const DEFAULT_ADDRESS = 'Paseo del Este - Local 12';
     const DEFAULT_PHONE   = '+54 9 223 555-1234';
     const DEFAULT_EMAIL   = 'contacto@estantesjet.com';
@@ -259,12 +256,6 @@
       let tel  = localStorage.getItem('estanteriavidriera_tel');
       let mail = localStorage.getItem('estanteriavidriera_mail');
       let logo = localStorage.getItem('estanteriavidriera_logo');
-      let savedImages = [];
-
-      try {
-        const rawImgs = localStorage.getItem('estanteriavidriera_gallery');
-        if (rawImgs) savedImages = JSON.parse(rawImgs);
-      } catch(e) {}
 
       if (window.location.hash.length > 1) {
         try {
@@ -282,8 +273,7 @@
         dir: dir || DEFAULT_ADDRESS,
         tel: tel || DEFAULT_PHONE,
         mail: mail || DEFAULT_EMAIL,
-        logo: logo || '',
-        images: savedImages
+        logo: logo || ''
       };
     }
 
@@ -294,7 +284,6 @@
     const imageGrid = document.getElementById('imageGrid');
     const searchInput = document.getElementById('searchInput');
     const statusMsg = document.getElementById('statusMsg');
-    const addImagesInput = document.getElementById('addImagesInput');
 
     const addressInput = document.getElementById('addressInput');
     const phoneInput = document.getElementById('phoneInput');
@@ -308,72 +297,62 @@
     phoneInput.value   = savedData.tel;
     emailInput.value   = savedData.mail;
 
-    let allImages = savedData.images;
+    let allImages = [];
     let baseImage = new Image();
+    let globalLogo = new Image();
     let uploadedLogo = null;
     let tempLogoData = savedData.logo;
     let currentHash = generateHash();
     let selectedPhotoName = savedData.foto;
 
     baseImage.crossOrigin = "anonymous";
+    globalLogo.crossOrigin = "anonymous";
+    globalLogo.src = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/logo.png`;
 
     if (tempLogoData) {
       uploadedLogo = new Image();
       uploadedLogo.src = tempLogoData;
     }
 
-    // Inicializar catálogo independiente que funciona en cualquier dispositivo y red
-    function initGallery() {
-      if (allImages.length === 0) {
-        // Imágenes de ejemplo o mensaje si está vacío
-        statusMsg.textContent = 'Usá el botón de arriba para cargar tus fotos.';
-      } else {
-        statusMsg.textContent = `Imágenes activas: ${allImages.length}`;
-      }
-
-      if (selectedPhotoName) {
-        const match = allImages.find(img => img.name === selectedPhotoName);
-        if (match) {
-          baseImage.src = match.url;
-        } else if (allImages.length > 0) {
-          baseImage.src = allImages[0].url;
-          selectedPhotoName = allImages[0].name;
-        }
-      } else if (allImages.length > 0) {
-        baseImage.src = allImages[0].url;
-        selectedPhotoName = allImages[0].name;
-      }
-
-      renderGrid();
-    }
-
-    // Al cargar imágenes desde cualquier dispositivo, se guardan en la memoria local y se ven al instante en celulares/tablets
-    addImagesInput.addEventListener('change', (e) => {
-      const files = e.target.files;
-      if (!files.length) return;
-
-      let processed = 0;
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          allImages.push({
-            name: file.name,
-            url: ev.target.result
-          });
-          processed++;
-          if (processed === files.length) {
-            localStorage.setItem('estanteriavidriera_gallery', JSON.stringify(allImages));
-            statusMsg.textContent = `Imágenes activas: ${allImages.length}`;
-            renderGrid();
-            if (!baseImage.src && allImages.length > 0) {
+    // Cargador seguro compatible con GitHub Pages utilizando la API de contenido pública optimizada
+    async function initGallery() {
+      statusMsg.textContent = 'Cargando imágenes de GitHub...';
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        
+        if (res.ok) {
+          const files = await res.json();
+          allImages = files
+            .filter(f => f.type === 'file' && f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i) && f.name.toLowerCase() !== 'logo.png')
+            .map(f => ({ name: f.name, url: f.download_url }));
+          
+          statusMsg.textContent = `Total de imágenes cargadas: ${allImages.length}`;
+          
+          if (selectedPhotoName) {
+            const match = allImages.find(img => img.name.toLowerCase() === selectedPhotoName.toLowerCase());
+            if (match) {
+              baseImage.src = match.url;
+              selectedPhotoName = match.name;
+            } else if (allImages.length > 0) {
               baseImage.src = allImages[0].url;
               selectedPhotoName = allImages[0].name;
             }
+          } else if (allImages.length > 0) {
+            baseImage.src = allImages[0].url;
+            selectedPhotoName = allImages[0].name;
           }
-        };
-        reader.readAsDataURL(file);
-      });
-    });
+
+          renderGrid();
+          return;
+        } else {
+          statusMsg.textContent = 'Error al leer el repositorio.';
+        }
+      } catch (e) {
+        statusMsg.textContent = 'Verificando conexión con GitHub...';
+      }
+    }
 
     function renderGrid() {
       const q = searchInput.value.toLowerCase();
@@ -382,7 +361,7 @@
       imageGrid.innerHTML = '';
 
       if (filtered.length === 0) {
-        imageGrid.innerHTML = '<p style="color:#a0aec0; text-align:center; grid-column:1/-1; padding:20px;">Sin imágenes. Subilas usando el selector de arriba.</p>';
+        imageGrid.innerHTML = '<p style="color:#a0aec0; text-align:center; grid-column:1/-1;">Sin imágenes encontradas.</p>';
         return;
       }
 
@@ -395,7 +374,7 @@
           <p>${imgObj.name}</p>
         `;
         
-        if (imgObj.name === selectedPhotoName) {
+        if (imgObj.name.toLowerCase() === selectedPhotoName.toLowerCase()) {
           card.classList.add('active');
         }
 
@@ -440,7 +419,7 @@
         ctx.fillStyle = '#00f3ff';
         ctx.font = '20px Roboto';
         ctx.textAlign = 'center';
-        ctx.fillText('Seleccioná una imagen de la galería', canvas.width / 2, canvas.height / 2);
+        ctx.fillText('Cargando imagen...', canvas.width / 2, canvas.height / 2);
       }
 
       const grad = ctx.createLinearGradient(0, canvas.height - 180, 0, canvas.height);
@@ -500,9 +479,11 @@
       ctx.fillRect(25, 20, canvas.width - 50, 90);
       ctx.strokeRect(25, 20, canvas.width - 50, 90);
 
+      let activeLogo = uploadedLogo || (globalLogo.complete && globalLogo.naturalWidth !== 0 ? globalLogo : null);
+
       let textX = 40;
-      if (uploadedLogo && uploadedLogo.complete && uploadedLogo.naturalWidth !== 0) {
-        ctx.drawImage(uploadedLogo, 35, 25, 75, 75);
+      if (activeLogo) {
+        ctx.drawImage(activeLogo, 35, 25, 75, 75);
         textX = 125;
       }
 
@@ -534,7 +515,6 @@
       localStorage.setItem('estanteriavidriera_tel', dataToSave.tel);
       localStorage.setItem('estanteriavidriera_mail', dataToSave.mail);
       localStorage.setItem('estanteriavidriera_logo', dataToSave.logo);
-      localStorage.setItem('estanteriavidriera_gallery', JSON.stringify(allImages));
 
       window.location.hash = encodeURIComponent(JSON.stringify(dataToSave));
 
